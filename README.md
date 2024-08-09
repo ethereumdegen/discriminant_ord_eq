@@ -32,7 +32,7 @@ pub enum ItemClassification {
 
 ```
 
-and it will effecively be the same as adding all this: 
+and it will effectively be the same as adding all this: 
 
 ```
 
