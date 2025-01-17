@@ -1,6 +1,6 @@
 [package]
-name = "discriminant_hash_eq"
-description="The DiscriminantHashEq macro is designed to derive implementations of the Hash, PartialEq, and Eq traits for enum types. These implementations are based solely on the enum's variant discriminants, ignoring any associated data within the variants. This means that two enum values are considered equal if they are the same variant, regardless of the values of any fields they might contain."
+name = "discriminant_ord_eq"
+description="The DiscriminantOrdEq macro is designed to derive implementations of the Ord, PartialOrd, Hash, PartialEq, and Eq traits for enum types. These implementations are based solely on the enum's variant discriminants, ignoring any associated data within the variants. This means that two enum values are considered equal if they are the same variant, regardless of the values of any fields they might contain."
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
