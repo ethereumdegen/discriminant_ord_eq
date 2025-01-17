@@ -4,16 +4,13 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput, Data, DataEnum};
 
-
-/// A derive macro that implements `Hash`, `PartialEq`, and `Eq` based on enum discriminants.
-/// 
-/// This macro ensures that hashing and equality checks are done based only on the enum variant type,
-/// ignoring any associated data. This is particularly useful for using enums with custom data in
-/// collections like `HashSet` or as keys in `HashMap`, where equality and hashing are determined by
-/// the variant type alone.
+/// A derive macro that implements `Ord`, `PartialOrd`, `Eq`, `PartialEq`, and `Hash`
+/// based on the discriminants of an enum, ignoring any associated data.
 ///
-#[proc_macro_derive(DiscriminantHashEq)]
-pub fn discriminant_hash_eq_derive(input: TokenStream) -> TokenStream {
+/// This macro ensures that comparisons, equality checks, and hashing are done solely
+/// based on the enum variant type.
+#[proc_macro_derive(DiscriminantOrdEq)]
+pub fn discriminant_ord_eq_derive(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -23,21 +20,19 @@ pub fn discriminant_hash_eq_derive(input: TokenStream) -> TokenStream {
     // Ensure it's an enum
     let data = match input.data {
         Data::Enum(data) => data,
-        _ => panic!("#[derive(DiscriminantHashEq)] is only defined for enums."),
+        _ => panic!("#[derive(DiscriminantOrdEq)] is only defined for enums."),
     };
 
     // Generate the implementation
-    let gen = impl_discriminant_hash_eq(&name, &data);
+    let gen = impl_discriminant_ord_eq(&name, &data);
 
     // Return the generated implementation
     gen.into()
 }
 
-fn impl_discriminant_hash_eq(name: &syn::Ident, data: &DataEnum) -> proc_macro2::TokenStream {
-    let variants = &data.variants;
-
-    // Generate the match arms for the discriminant
-    let match_arms = variants.iter().map(|variant| {
+fn impl_discriminant_ord_eq(name: &syn::Ident, data: &DataEnum) -> proc_macro2::TokenStream {
+    // Generate match arms for accessing the discriminant
+    let match_arms = data.variants.iter().map(|variant| {
         let variant_name = &variant.ident;
         match &variant.fields {
             syn::Fields::Named(_) | syn::Fields::Unnamed(_) => {
@@ -70,5 +65,17 @@ fn impl_discriminant_hash_eq(name: &syn::Ident, data: &DataEnum) -> proc_macro2:
         }
 
         impl Eq for #name {}
+
+        impl PartialOrd for #name {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                Some(std::mem::discriminant(self).cmp(&std::mem::discriminant(other)))
+            }
+        }
+
+        impl Ord for #name {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                std::mem::discriminant(self).cmp(&std::mem::discriminant(other))
+            }
+        }
     }
 }
