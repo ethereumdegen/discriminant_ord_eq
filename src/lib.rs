@@ -2,13 +2,11 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Data, DataEnum};
+use syn::{parse_macro_input, Data, DataEnum, DeriveInput};
 
-/// A derive macro that implements `Ord`, `PartialOrd`, `Eq`, `PartialEq`, and `Hash`
-/// based on the discriminants of an enum, ignoring any associated data.
-///
-/// This macro ensures that comparisons, equality checks, and hashing are done solely
-/// based on the enum variant type.
+/// A derive macro that implements `Ord`, `PartialOrd`, `Eq`, and `PartialEq`
+/// based on the discriminants of an enum, ignoring any associated data,
+/// and also provides a `variant_index` method via a `VariantIndex` trait.
 #[proc_macro_derive(DiscriminantOrdEq)]
 pub fn discriminant_ord_eq_derive(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
@@ -31,36 +29,26 @@ pub fn discriminant_ord_eq_derive(input: TokenStream) -> TokenStream {
 }
 
 fn impl_discriminant_ord_eq(name: &syn::Ident, data: &DataEnum) -> proc_macro2::TokenStream {
-    // Generate match arms for accessing the discriminant
-    let match_arms = data.variants.iter().map(|variant| {
-        let variant_name = &variant.ident;
-        match &variant.fields {
-            syn::Fields::Named(_) | syn::Fields::Unnamed(_) => {
-                quote! {
-                    #name::#variant_name { .. } => std::mem::discriminant(self),
-                }
+    // Generate a match arm for each variant with its index
+    let variant_indices = data
+        .variants
+        .iter()
+        .enumerate()
+        .map(|(index, variant)| {
+            let variant_name = &variant.ident;
+            quote! {
+                #name::#variant_name { .. } => #index,
             }
-            syn::Fields::Unit => {
-                quote! {
-                    #name::#variant_name => std::mem::discriminant(self),
-                }
-            }
-        }
-    });
+        });
 
+    // Generate the implementation of `Ord`, `PartialOrd`, `Eq`, and `PartialEq` and the `VariantIndex` trait
     quote! {
-        impl std::hash::Hash for #name {
-            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-                let discriminant = match self {
-                    #(#match_arms)*
-                };
-                discriminant.hash(state);
-            }
-        }
-
         impl PartialEq for #name {
             fn eq(&self, other: &Self) -> bool {
-                std::mem::discriminant(self) == std::mem::discriminant(other)
+                let self_index = self.variant_index();
+                let other_index = other.variant_index();
+
+                self_index == other_index
             }
         }
 
@@ -68,13 +56,32 @@ fn impl_discriminant_ord_eq(name: &syn::Ident, data: &DataEnum) -> proc_macro2::
 
         impl PartialOrd for #name {
             fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-                Some(std::mem::discriminant(self).cmp(&std::mem::discriminant(other)))
+                let self_index = self.variant_index();
+                let other_index = other.variant_index();
+
+                Some(self_index.cmp(&other_index))
             }
         }
 
         impl Ord for #name {
             fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-                std::mem::discriminant(self).cmp(&std::mem::discriminant(other))
+                let self_index = self.variant_index();
+                let other_index = other.variant_index();
+
+                self_index.cmp(&other_index)
+            }
+        }
+
+        /// A trait to provide variant indexing for enums.
+        pub trait VariantIndex {
+            fn variant_index(&self) -> usize;
+        }
+
+        impl VariantIndex for #name {
+            fn variant_index(&self) -> usize {
+                match self {
+                    #(#variant_indices)*
+                }
             }
         }
     }
